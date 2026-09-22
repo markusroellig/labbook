@@ -1,0 +1,33 @@
+---
+title: "Conventions"
+status: open
+---
+
+> **Note:** Proposal of the lab-notebook system. To be reviewed and adapted by the human, then
+> run `python3 tools/lb.py schuetze` (`protect`). This file is write-protected for Claude.
+
+## Units
+
+All physical quantities in cgs unless stated otherwise. Temperatures in K.
+
+## Densities and abundances
+
+- $n$ or $n_\mathrm{H} = n(\mathrm{H}) + 2\,n(\mathrm{H_2})$: total density of hydrogen nuclei in cm$^{-3}$.
+- Abundances $X_i = n_i / n_\mathrm{H}$.
+
+## Radiation field
+
+- $\chi$: FUV field strength in units of the **Draine** field (not Habing, $G_0 \approx 1.71\,\chi$). Every deviation must be stated explicitly in the entry.
+
+## Extinction
+
+- $A_V$ measured from the illuminated surface; conversion $N_\mathrm{H}/A_V$ according to the model parameter, state it in the entry.
+
+## Rate coefficients
+
+- Two-body rates $k$ in cm$^{3}$\,s$^{-1}$, photo-rates in s$^{-1}$; source/version of the network in the provenance.
+
+## Labels and IDs
+
+- Entries: `YYYY-MM-DD_slug`; runs `R-NNNN`; events `E-NNNN`.
+- Quarto labels with slug prefix: `fig-<slug>-<name>`, `eq-<slug>-<name>`, `tbl-<slug>-<name>`.

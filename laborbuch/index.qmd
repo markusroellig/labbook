@@ -1,0 +1,9 @@
+---
+title: "Overview"
+---
+
+This lab notebook is generated from Markdown sources (Quarto). The source of truth are the
+`.qmd` files, `results.tsv`, `runs/*/provenance.json` and the mechanical trace in `_trace/`.
+This PDF/HTML is derived and is never edited by hand.
+
+{{< include _generiert/uebersicht.md >}}

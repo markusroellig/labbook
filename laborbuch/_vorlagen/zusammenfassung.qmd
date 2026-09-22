@@ -1,0 +1,30 @@
+---
+title: "Session {{TITLE}}: Summary"
+id: {{ID}}-zusammenfassung
+date: {{DATE}}
+status: open
+start: "{{START}}"
+ende: "{{ENDE}}"
+events: []
+discarded: {}
+reviewed_by: ""
+---
+
+## Planned
+
+<!-- Brief, with reference to the plan. -->
+
+## Carried out
+
+<!-- Entries and runs of this session, one sentence each. -->
+
+## Deviations from plan
+
+## Key findings
+
+## Open questions and next steps
+
+## Appendix: Trace
+
+<!-- TRACE-STATISTIK:BEGINN (generiert) -->
+<!-- TRACE-STATISTIK:ENDE -->

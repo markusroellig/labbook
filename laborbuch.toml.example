@@ -1,0 +1,94 @@
+# Example lab-notebook configuration (the one used in the KOSMA-tau PDR project). Copy it to the
+# project's .claude directory as laborbuch.toml and adapt the protected paths and relevance patterns.
+# The human maintainer edits this file; the path is protected against the assistant.
+# Pfade und Muster relativ zum Repository-Wurzelverzeichnis. Muster: `*` = ein Pfadsegment, `**` = beliebig viele.
+
+[pfade]
+laborbuch = "laborbuch"
+archiv = ".laborbuch-archiv"      # komprimierte Claude-Code-Transkripte (nicht in git)
+
+[buch]
+titel = 'Laborbuch KOSMA-$\tau$'
+autor = "Markus Röllig"
+
+[schutz]
+# Claude darf diese Pfade weder per Edit/Write noch per Shell veraendern (PreToolUse-Hook),
+# und `lb.py schuetze` legt fuer sie ein SHA-256-Manifest an (Stop-Hook prueft).
+geschuetzt = [
+  # Laborbuch-Infrastruktur
+  "laborbuch/konventionen.qmd",
+  "laborbuch/results.tsv",
+  "laborbuch/_state/events.jsonl",
+  "laborbuch/_trace/**",
+  "laborbuch/runs/**",
+  "laborbuch/_vorlagen/**",
+  "laborbuch/_extensions/**",
+  "laborbuch/_quarto.yml",
+  ".claude/hooks/**",
+  ".claude/settings.json",
+  ".claude/laborbuch.toml",
+  ".claude/laborbuch.sha256",
+  ".claude/agents/protokoll-auditor.md",
+  ".claude/skills/laborbuch/**",
+  "tools/lb.py",
+  # Referenz- und Beobachtungsdaten (Soll-Werte der Fits und Tests)
+  "integration_tests/baselines/**",
+  "integration_tests/testdata/**",
+  "integration_tests/BASELINE_REFERENCE.txt",
+  "H2_paper_fit/Joblin et al. 2018/**",
+  "H2_paper_fit/IC63/**",
+  "H2_paper_fit/Roueff/**",
+  "H2_paper_fit/grid_simline_results_v3.h5",
+  "H2_paper_fit/grid_simline_results_v2.h5",
+]
+# Diese geschuetzten Dateien wachsen legitim (nur durch Hooks/lb.py). Geprueft wird per git,
+# dass der committete Stand ein Praefix des aktuellen Inhalts ist.
+nur_anhaengen = [
+  "laborbuch/results.tsv",
+  "laborbuch/_state/events.jsonl",
+  "laborbuch/_trace/**",
+  "laborbuch/runs/**",
+]
+
+[relevanz]
+# Aenderungen hier erzeugen ein Ereignis "code" (reine Kommentar-/Whitespace-Aenderungen nicht).
+physik = [
+  "pdrsrc/src/main/**/*.f90", "pdrsrc/src/main/**/*.F90", "pdrsrc/src/main/**/*.f", "pdrsrc/src/main/**/*.c",
+  "pdrinpdata/**",                      # Molekuel-, Linien-, Staub- und Ratendaten
+  "rundir/chem_rates*.dat",             # chemisches Netzwerk
+  "simline/molecules/**",               # LAMDA-Dateien fuer SimLine
+  "h2py/kosma_h2/data/**",
+]
+kommentar_praefix = ["!"]
+# Aenderungen hier erzeugen ein Ereignis "abweichung" (Parameterraum, Testumfang, Toleranzen).
+abweichung = [
+  "rundir/pdr_config.json*",
+  "rundir_test/pdr_config.json*",
+  "rundir_test/run_*.sh",
+  "integration_tests/cases/**",
+  "tests/**",
+  "H2_paper_fit/my_config*.yaml",
+  "H2_paper_fit/fit_*.py",
+]
+# Regulaere Ausdruecke auf den Shell-Befehl
+test_befehle = ['^make test', '\bctest\b', '\bpytest\b', 'reports/scripts/check_[a-z0-9_]+\.py', 'integration_tests/.*\.sh']
+test_fehler_muster = '\b\d+ failed\b|FAILED|Tests? failed|\bFAIL\b'
+build_befehle = ['^make\b', '\bmake (DEBUG=1 )?JSON_FORTRAN_DIR', '\bifx\b', '\bgfortran\b']
+lauf_befehle = ['lb\.py\s+run\b']
+
+[lauf]
+hypothese_commit_pflicht = true   # Eintrag mit Hypothese muss vor `lb.py run` committet sein
+dirty_erlaubt = true              # Laeufe mit uncommittetem Code erlaubt (Patch wird gesichert)
+compiler_befehl = "ifx --version"
+umgebungsvariablen = ["OMP_NUM_THREADS", "OMP_STACKSIZE", "MKL_NUM_THREADS", "JSON_FORTRAN_DIR"]
+min_frei_gb = 10
+
+[pruefung]
+render = "pdf"                    # pdf | html | aus  (Render-Test geaenderter Dokumente im Stop-Hook)
+stop_pruefung = "immer"           # immer | nur-session
+max_stop_blockaden = 5            # danach wird das Beenden erlaubt und _state/UNERLEDIGT.md geschrieben
+
+[trace]
+max_zeichen = 4000                # Werkzeug-Ein-/Ausgaben im Trace kuerzen (SHA-256 des Volltexts bleibt)
+ohne_antwort = ["Read", "Grep", "Glob"]   # bei diesen nur Eingabe, Laenge und Pruefsumme der Antwort
+transkripte_archivieren = true

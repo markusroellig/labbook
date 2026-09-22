@@ -1,0 +1,34 @@
+---
+title: "Session {{TITLE}}: Plan"
+id: {{ID}}
+date: {{DATE}}
+status: open
+start: "{{START}}"
+events: []
+discarded: {}
+---
+
+## Goal
+
+<!-- What should the session achieve? Measurable success criterion. -->
+
+## Hypotheses
+
+<!-- Numbered, quantitative, each with a decision criterion. -->
+
+## Planned experiments and tests
+
+<!-- Order, parameter points, expected run times. -->
+
+## Scope of action
+
+<!-- What may be changed (files/modules), what explicitly not? -->
+
+## Stop criteria
+
+<!-- e.g. "after 3 unsuccessful fix attempts at the same error, stop and document",
+     time budget, maximum number of runs, disk space. -->
+
+## Test oracle
+
+<!-- How is success measured? Reference solution, benchmark, analytical limiting case. -->

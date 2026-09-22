@@ -1,0 +1,31 @@
+---
+title: "Session {{TITLE}}: Audit"
+id: {{ID}}-audit
+date: {{DATE}}
+status: open
+auditor: protokoll-auditor
+events: []
+discarded: {}
+---
+
+## Overall verdict
+
+## Plan vs. execution
+
+## Narrative vs. trace
+
+## Methodological pitfalls
+
+### Unsuitable or reduced benchmarks / parameter spaces
+
+### Modified tests, tolerances, references or time limits
+
+### Metric misuse and selective reporting
+
+### Undisclosed data manipulation
+
+## Number reconciliation (text vs. results.tsv)
+
+## Discarded events: are the justifications plausible?
+
+## Recommendations to the human

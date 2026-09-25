@@ -14,8 +14,7 @@ First release prepared for use outside the project it came from.
 - The German names of 0.1 keep working: configuration keys are mapped on load, `.claude/laborbuch.toml`
   is found, a notebook with `_vorlagen/` keeps its German layout, the German CLI names and shortcodes
   are aliases. Ledger formats (results.tsv, provenance.json, events.jsonl) are unchanged.
-- Templates, conventions, skill and auditor are project-neutral; the KOSMA-tau configuration and
-  conventions moved to `examples/kosma-tau/`.
+- Templates, conventions, skill and auditor are project-neutral.
 - `install.sh`: `--notebook DIR`, `--upgrade`; merges the hooks into an existing
   `.claude/settings.json` (backup kept) instead of asking for a manual merge; adds the transcript
   archive to `.gitignore`; portable path rewriting (perl instead of GNU sed).
@@ -46,4 +45,4 @@ First release prepared for use outside the project it came from.
 
 ## 0.1.0 – 2026-09-22
 
-Extracted from the KOSMA-tau PDR project (German names, single project).
+First version, with German names, written for use in a single project.

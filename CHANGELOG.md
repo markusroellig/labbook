@@ -38,7 +38,10 @@ First release prepared for use outside the project it came from.
   the sources. The overview table shows opened/closed.
 - Per-machine run-ID ranges (`[run] id_range`, env `LB_ID_RANGE`) for notebooks shared by several machines.
 - Bytecode (`__pycache__`) excluded from the protection manifest (differs between Python versions).
-- Test suite (`tests/`, pytest) and GitHub Actions workflow; end-to-end demo `examples/demo/run_demo.sh`.
+- Test suite (`tests/`, pytest) and GitHub Actions workflow; end-to-end demo `examples/demo/run_demo.sh`
+  (a session with plan and summary, two entries – one confirmed, one refuted – five runs, an analysis
+  with figure and metrics, both books).
+- Screenshots in `docs/img/` and the demo book as `docs/example/labbook-demo.pdf`, shown in the README.
 - `docs/REFERENCE.md`: CLI, configuration, file formats, compatibility names.
 
 ## 0.1.0 – 2026-09-22

@@ -1,5 +1,6 @@
 """Installation variants and compatibility with notebooks of the first (German-named) version."""
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -89,8 +90,11 @@ def test_upgrade_replaces_code_only(tmp_path):
 
 
 def test_demo_script_runs(tmp_path):
+    import pytest
+    pytest.importorskip("matplotlib")        # the demo's analysis draws a figure
     r = subprocess.run(["bash", str(REPO / "examples" / "demo" / "run_demo.sh"), str(tmp_path / "demo")],
-                       capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
-                                                            "LB_DEMO_NO_BOOK": "1", "PYTHON": sys.executable})
+                       capture_output=True, text=True,
+                       env={**{k: v for k, v in os.environ.items() if k not in ("CLAUDE_PROJECT_DIR", "LB_ID_RANGE")},
+                            "LB_DEMO_NO_BOOK": "1", "PYTHON": sys.executable})
     assert r.returncode == 0, r.stdout + r.stderr
     assert "Lab-notebook check passed." in r.stdout

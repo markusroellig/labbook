@@ -33,6 +33,32 @@ It is plain Python (standard library), git and Quarto. It was developed for the 
 photon-dominated-region code (Fortran, astrochemistry), where it has documented about 200 model runs
 in 70 entries. Nothing in it is specific to that code.
 
+## What it looks like
+
+The images come from the demo below: a short session with a plan, two preregistered hypotheses
+about the explicit Euler method (one confirmed, one refuted), five runs and a session summary. The
+rendered book is in [`docs/example/labbook-demo.pdf`](docs/example/labbook-demo.pdf) (12 pages).
+
+**The book** (PDF): table of contents by month › week › day, an entry with its metadata line
+(ID, opened/closed, verdict, runs), and equations tied to code lines. The figure comes from the
+entry's `analysis.py`, and the caption ends with the run provenance. Every number in the text is a
+shortcode that reads the ledger.
+
+![Three pages of the PDF book: table of contents, the start of an entry, result with figure](docs/img/book-pdf-pages.png)
+
+**The same book as HTML**, searchable, with the day's entries in the sidebar:
+
+![HTML book: an entry with metadata, hypothesis and equations](docs/img/html-entry.png)
+
+![HTML book: result section with figure, provenance caption and ledger numbers](docs/img/html-result.png)
+
+**The hooks at work.** This is real hook output for simulated tool calls in the demo project. A
+chained shell command that would edit the ledger and a direct edit of the conventions are both
+blocked. A change to the model code becomes an event. The session cannot end until every event is
+documented in an entry:
+
+![Terminal: PreToolUse blocks, PostToolUse event, Stop hook refusing to end the session](docs/img/hooks-terminal.png)
+
 ## How a session looks
 
 ```mermaid
@@ -60,11 +86,13 @@ git clone https://github.com/markusroellig/labbook
 labbook/examples/demo/run_demo.sh          # builds a throw-away project in a temp directory
 ```
 
-The demo installs labbook into a toy project and walks through one complete experiment (is explicit
-Euler really first order?): a run refused before the hypothesis exists, preregistration, two runs,
-a metric in the ledger, an entry with numbers from shortcodes, the check, and the HTML book if Quarto
-is installed. It runs without Claude Code; in a real session the assistant does the same steps, and
-the hooks add the trace, the events and the protection.
+The demo installs labbook into a toy project and runs a small session on the question "is explicit
+Euler really first order, and down to which step size?". It starts with a committed plan. It shows a
+run refused before its hypothesis exists, then preregistration, five runs through the wrapper, an
+analysis that draws a figure and writes metrics to the ledger, two entries closed with
+`lb.py close` (one confirmed, one refuted), the session summary, and the HTML and PDF books
+if Quarto is installed. It needs matplotlib. It runs without Claude Code; in a real session the
+assistant does the same steps, and the hooks add the trace, the events and the protection.
 
 ## Installation
 

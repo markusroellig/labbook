@@ -1,10 +1,10 @@
 ---
 title: "Session {{TITLE}}: Summary"
-id: {{ID}}-zusammenfassung
+id: {{ID}}-summary
 date: {{DATE}}
 status: open
 start: "{{START}}"
-ende: "{{ENDE}}"
+end: "{{END}}"
 events: []
 discarded: {}
 reviewed_by: ""
@@ -26,5 +26,5 @@ reviewed_by: ""
 
 ## Appendix: Trace
 
-<!-- TRACE-STATISTIK:BEGINN (generiert) -->
-<!-- TRACE-STATISTIK:ENDE -->
+<!-- TRACE-STATS:BEGIN (generated) -->
+<!-- TRACE-STATS:END -->

@@ -8,8 +8,12 @@ Principles
 - `pre` blocks writes to protected files (exit 2).
 - `post`/`fail` create events that must be documented and report them as context.
 - `stop` prevents the session from ending while entries are faulty or events are
-  undocumented (bounded by pruefung.max_stop_blockaden).
-- Internal errors never block; they go to _state/hook-fehler.log.
+  undocumented (bounded by check.max_stop_blocks).
+- Internal errors never block; they go to _state/hook-errors.log.
+
+The shell check in `pre` is a heuristic against accidental or careless writes, not a security
+boundary: a determined process can always write a file in a way no regular expression anticipates.
+The SHA-256 manifest verified by `stop` is the backstop that catches what the heuristic misses.
 
 Event kinds written to the ledger keep their German tokens (`schutzverletzung`, `lauf`,
 `code`, ...); when shown to a human they carry an English label, e.g. `lauf (run)`.
@@ -30,8 +34,14 @@ BASH_WRITE_RE = re.compile(
     r"((?<![\d&=-])>>?(?![&=])|\btee\b|\bsed\s+-i|\bperl\s+-[a-z]*i|\bmv\b|\bcp\b|\brm\b|\btruncate\b|\bchmod\b|\bln\b|"
     r"\bdd\b|open\([^)]*['\"][wa]|write_text|\bgit\s+(checkout|restore|reset|rm|mv)\b|\bpatch\b)"
 )
-# Marker printed by `lb.py run` (literal token, parsed here -- do not rename).
-RUN_MARKER_RE = re.compile(r"LAUF (R-\d+) exit=(-?\d+)")
+# Shell command segments: split at `&&`, `||`, `;`, `|` and newlines.
+SEGMENT_SPLIT_RE = re.compile(r"&&|\|\||[;|\n]")
+# A segment that invokes the notebook tool; group 1 = its arguments.
+LB_CALL_RE = re.compile(r"^\s*(?:\w+=\S*\s+)*(?:\S*python[\d.]*\s+)?\S*\blb\.py\b(.*)$", re.S)
+QUOTED_RE = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+REDIRECT_RE = re.compile(r"(?<![\d&=-])>>?(?![&=])|\btee\b")
+# Marker printed by `lb.py run` (parsed here; `LAUF` is the marker of older versions of the tool).
+RUN_MARKER_RE = re.compile(r"(?:RUN|LAUF) (R-\d+) exit=(-?\d+)")
 # Accepted "nothing to report" placeholders in the failed-attempts section.
 NONE_WORDS = ("keine", "keine.", "none", "none.")
 
@@ -107,7 +117,7 @@ def on_start(lb: C.LB, p: dict) -> int:
     if fails:
         lines.append("- Documented dead ends of the latest entries (do not repeat without a new reason):")
         lines.extend(fails)
-    lines.append("- Conventions: laborbuch/konventionen.qmd. Working method: skill `laborbuch`.")
+    lines.append(f"- Conventions: {lb.rel(lb.conventions)}. Working method: skill `labbook`.")
     print("\n".join(lines))
     return 0
 
@@ -142,15 +152,47 @@ def on_pre(lb: C.LB, p: dict) -> int:
     if tool == "Bash":
         cmd = (p.get("tool_input") or {}).get("command", "")
         if re.search(r"lb\.py\s+(schuetze|protect)\b", cmd):
-            return blocked(lb, p, "`lb.py schuetze` (`protect`) may only be run by the human (maintainer only).")
-        if re.search(r"\blb\.py\b", cmd) and not BASH_WRITE_RE.search(re.sub(r"\blb\.py\b.*", "", cmd)):
-            return 0
-        if BASH_WRITE_RE.search(cmd):
-            for pat in prot:
-                pref = C.literal_prefix(pat).rstrip("/")
-                if pref and pref in cmd:
-                    return blocked(lb, p, f"the shell command probably modifies the protected path `{pref}`.")
+            return blocked(lb, p, "`lb.py protect` may only be run by the human (maintainer only).")
+        hit = shell_write_target(cmd, prot)
+        if hit:
+            return blocked(lb, p, f"the shell command probably modifies the protected path `{hit}`.")
     return 0
+
+
+def _protected_in(text: str, prot: list[str]) -> str | None:
+    for pat in prot:
+        pref = C.literal_prefix(pat).rstrip("/")
+        if pref and pref in text:
+            return pref
+    return None
+
+
+def shell_write_target(cmd: str, prot: list[str]) -> str | None:
+    """The protected path a shell command probably writes to, or None (heuristic, see module doc).
+
+    Each segment of the command line is checked on its own. A segment that calls `lb.py` is
+    trusted with its own arguments (descriptions and output globs may name protected paths), but
+    not with a redirection of its output, and the command that `lb.py run -- ...` executes is
+    checked like any other command."""
+    for seg in SEGMENT_SPLIT_RE.split(cmd):
+        m = LB_CALL_RE.match(seg)
+        if not m:
+            if BASH_WRITE_RE.search(seg):
+                hit = _protected_in(seg, prot)
+                if hit:
+                    return hit
+            continue
+        head, sep, tail = m.group(1).partition(" -- ")
+        if sep and re.match(r"\s*run\b", head):
+            hit = shell_write_target(tail, prot)
+            if hit:
+                return hit
+        bare = QUOTED_RE.sub("", head)
+        if REDIRECT_RE.search(bare):
+            hit = _protected_in(bare, prot)
+            if hit:
+                return hit
+    return None
 
 
 # --------------------------------------------------------------------------- post / fail (relevance)
@@ -160,12 +202,12 @@ def classify_write(lb: C.LB, p: dict) -> list[tuple[str, str, str]]:
     if not path:
         return []
     rel = lb.rel(path)
-    rel_cfg = lb.cfg.get("relevanz", {})
+    rel_cfg = lb.cfg.get("relevance", {})
     sid = p.get("session_id", "")
     out = []
-    if C.matches_any(rel, rel_cfg.get("physik", [])):
+    if C.matches_any(rel, rel_cfg.get("code", [])):
         ti = p.get("tool_input") or {}
-        prefixes = rel_cfg.get("kommentar_praefix", ["!"])
+        prefixes = rel_cfg.get("comment_prefixes", ["#"])
         if "old_string" in ti:
             old, new = ti.get("old_string", ""), ti.get("new_string", "")
         elif "edits" in ti:
@@ -177,7 +219,7 @@ def classify_write(lb: C.LB, p: dict) -> list[tuple[str, str, str]]:
         if C.normalize_code(old, prefixes) != C.normalize_code(new, prefixes):
             plus, minus = C.diff_stat(old, new)
             out.append(("code", f"{rel} (+{plus}/-{minus})", f"code:{sid}:{rel}"))
-    if C.matches_any(rel, rel_cfg.get("abweichung", [])):
+    if C.matches_any(rel, rel_cfg.get("deviation", [])):
         out.append(("abweichung", f"{rel} changed (parameter space/test scope)", f"abw:{sid}:{rel}"))
     a = active_session(lb)
     if a and rel == f"{a['verzeichnis']}/plan.qmd" and a.get("plan_committed"):
@@ -187,15 +229,15 @@ def classify_write(lb: C.LB, p: dict) -> list[tuple[str, str, str]]:
 
 def classify_bash(lb: C.LB, p: dict, failed: bool) -> list[tuple[str, str, str]]:
     cmd = (p.get("tool_input") or {}).get("command", "")
-    rel_cfg = lb.cfg.get("relevanz", {})
+    rel_cfg = lb.cfg.get("relevance", {})
     sid = p.get("session_id", "")
     text = response_text(p)
     code = exit_code_from(p)
     failed = failed or (code is not None and code != 0)
     out = []
-    is_test = any(re.search(rx, cmd) for rx in rel_cfg.get("test_befehle", []))
+    is_test = any(re.search(rx, cmd) for rx in rel_cfg.get("test_commands", []))
     if is_test:
-        fail_rx = rel_cfg.get("test_fehler_muster", r"\b\d+ failed\b|FAILED|Tests? failed|\bFAIL\b")
+        fail_rx = rel_cfg.get("test_failure_pattern", r"\b\d+ failed\b|FAILED|Tests? failed|\bFAIL\b")
         status = "FAIL" if (failed or re.search(fail_rx, text)) else "PASS"
         key = re.sub(r"\s+", " ", cmd.strip())
         with C.state_tx(lb) as st:
@@ -204,7 +246,7 @@ def classify_bash(lb: C.LB, p: dict, failed: bool) -> list[tuple[str, str, str]]
         if (prev is None and status == "FAIL") or (prev is not None and prev != status):
             detail = f"`{key[:80]}`: {status}" + (f" (previously {prev})" if prev else "")
             out.append(("test-wechsel", detail, ""))
-    if failed and not is_test and any(re.search(rx, cmd) for rx in rel_cfg.get("build_befehle", [])):
+    if failed and not is_test and any(re.search(rx, cmd) for rx in rel_cfg.get("build_commands", [])):
         errs = [l for l in text.splitlines() if re.search(r"error|Error|FEHLER", l)][:3]
         sig = re.sub(r"\d+", "#", " ".join(errs))[:300]
         with C.state_tx(lb) as st:
@@ -214,7 +256,7 @@ def classify_bash(lb: C.LB, p: dict, failed: bool) -> list[tuple[str, str, str]]
                 seen.append(sig)
         if new:
             out.append(("build-fehler", (errs[0].strip()[:120] if errs else f"`{cmd[:60]}` failed"), ""))
-    if any(re.search(rx, cmd) for rx in rel_cfg.get("lauf_befehle", [])):
+    if any(re.search(rx, cmd) for rx in rel_cfg.get("run_commands", [r"lb\.py\s+run\b"])):
         m = RUN_MARKER_RE.search(text)
         if m:
             out.append(("lauf", f"{m.group(1)} exit={m.group(2)}", f"lauf:{m.group(1)}"))
@@ -249,11 +291,11 @@ def on_post(lb: C.LB, p: dict, failed: bool) -> int:
 
 def on_stop(lb: C.LB, p: dict) -> int:
     C.append_trace(lb, p)
-    mode = lb.cfg.get("pruefung", {}).get("stop_pruefung", "immer")
-    if mode == "nur-session" and not active_session(lb):
+    mode = lb.cfg.get("check", {}).get("stop_check", "always")
+    if mode == "session-only" and not active_session(lb):
         return 0
     probs = C.full_check(lb, only_changed=True, render=True)
-    max_blocks = int(lb.cfg.get("pruefung", {}).get("max_stop_blockaden", 5))
+    max_blocks = int(lb.cfg.get("check", {}).get("max_stop_blocks", 5))
     with C.state_tx(lb) as st:
         if not probs:
             st["stop_blockaden"] = 0
@@ -263,7 +305,7 @@ def on_stop(lb: C.LB, p: dict) -> int:
     if n > max_blocks:
         C.add_event(lb, "stop-limit", f"Session ended despite {len(probs)} open lab-notebook problems",
                     p.get("session_id", ""), dedupe_open=False)
-        (lb.state_dir / "UNERLEDIGT.md").write_text(
+        lb.unresolved_file.write_text(
             f"# Unresolved lab-notebook problems ({C.now_iso()})\n\n" + "\n".join(f"- {x}" for x in probs) + "\n")
         with C.state_tx(lb) as st:
             st["stop_blockaden"] = 0
@@ -277,7 +319,7 @@ def on_stop(lb: C.LB, p: dict) -> int:
 
 def on_end(lb: C.LB, p: dict) -> int:
     C.append_trace(lb, p)
-    if lb.cfg.get("trace", {}).get("transkripte_archivieren", True):
+    if lb.cfg.get("trace", {}).get("archive_transcripts", True):
         C.archive_transcript(lb, p)
     return 0
 
@@ -308,9 +350,9 @@ def main() -> int:
             return on_end(lb, payload)
         return 0
     except Exception:  # never block because of an internal error
-        with open(lb.state_dir / "hook-fehler.log", "a") as f:
+        with open(lb.error_log, "a") as f:
             f.write(f"--- {C.now_iso()} {mode}\n{traceback.format_exc()}\n")
-        print("Lab-notebook hook: internal error, see laborbuch/_state/hook-fehler.log", file=sys.stderr)
+        print(f"Lab-notebook hook: internal error, see {lb.rel(lb.error_log)}", file=sys.stderr)
         return 1
 
 

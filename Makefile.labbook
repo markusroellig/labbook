@@ -1,0 +1,22 @@
+# Include from the project Makefile with:  include Makefile.labbook
+LB := python3 tools/lb.py
+
+.PHONY: labbook labbook-html labbook-check labbook-protect labbook-preflight labbook-events
+
+labbook:            ## complete PDF book
+	$(LB) book --format pdf
+
+labbook-html:       ## complete HTML book (searchable)
+	$(LB) book --format html
+
+labbook-check:      ## full check of all documents
+	$(LB) check --all
+
+labbook-protect:    ## rewrite the protection manifest (human only, then commit it)
+	$(LB) protect
+
+labbook-preflight:  ## readiness for unattended sessions
+	$(LB) preflight
+
+labbook-events:     ## undocumented events
+	$(LB) events --open

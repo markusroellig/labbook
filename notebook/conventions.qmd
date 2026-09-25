@@ -1,0 +1,33 @@
+---
+title: "Conventions"
+status: open
+---
+
+> **Maintainer:** adapt this file to the project, then run `python3 tools/lb.py protect` and
+> commit. It is write-protected for the assistant: conventions are set by the human.
+
+The conventions below bind every entry. An entry that deviates from one says so explicitly.
+
+## Identifiers and labels
+
+- Entries: `YYYY-MM-DD_slug`; runs: `R-NNNN`; events: `E-NNNN`.
+- Quarto labels carry the entry slug as prefix: `fig-<slug>-<name>`, `eq-<slug>-<name>`,
+  `tbl-<slug>-<name>`; cross-references with `@fig-<slug>-<name>`.
+
+## Numbers
+
+- Numbers in the text come from the ledger via shortcodes (`{{</* result R-0007 metric */>}}`,
+  `{{</* run-param R-0007 key */>}}`); a number typed by hand names its source.
+- Every quantity carries its unit.
+
+## Project conventions
+
+<!-- Replace this block with the conventions of your project. Examples of what belongs here:
+
+- Unit system (SI, cgs, natural units) and exceptions.
+- Definitions of the main symbols and their normalisation, e.g. "n = total density of hydrogen
+  nuclei in cm^-3"; "chi = FUV field in units of the Draine field".
+- Reference data sets and their versions; which solver tolerances count as "converged".
+- What counts as a passing test (test oracle), and which benchmarks are authoritative.
+
+A complete real-world example is in examples/kosma-tau/conventions.qmd of the labbook repository. -->

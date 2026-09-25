@@ -1,8 +1,8 @@
 # Lab-notebook obligation
 
 Numerical experiments, tests of model behaviour, debugging attempts with model runs and
-autonomous sessions are documented in the Quarto lab notebook under `laborbuch/`.
-Working method and rules: skill `laborbuch` (`.claude/skills/laborbuch/SKILL.md`) – read before the first
+autonomous sessions are documented in the Quarto lab notebook under `labbook/`.
+Working method and rules: skill `labbook` (`.claude/skills/labbook/SKILL.md`) – read before the first
 experiment of a session.
 
 Binding:

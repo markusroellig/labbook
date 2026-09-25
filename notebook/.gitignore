@@ -1,0 +1,17 @@
+# Rendered and transient files stay local; sources, ledgers, runs and the trace are committed.
+/.quarto/
+**/*.quarto_ipynb
+/_book/
+/_generated/
+/_quarto-book.yml
+/_state/state.json
+/_state/*.tmp
+/_state/hook-errors.log
+/_state/UNRESOLVED.md
+**/*.lock
+/entries/*/entry.pdf
+/entries/*/entry.html
+/sessions/*/*.pdf
+/sessions/*/*.html
+**/__pycache__/
+**/texput.log

@@ -6,8 +6,17 @@ Schema note: the entry schema is English (keys `date`, `author`, `discarded`, `c
 `verdict`, `retrospective`; values `open|closed|discarded`, `confirmed|refuted|...`). Files
 written under the former German schema are still read: `parse_frontmatter` maps the German
 keys and values to the English ones, and `section_content` accepts either heading spelling.
-Ledger records (events.jsonl, state.json, trace files) keep their original field names and
-event-kind tokens because those files are append-only.
+Ledger records (results.tsv, provenance.json, events.jsonl, state.json, trace files) keep their
+original German field names and event-kind tokens because those files are append-only; the
+English meaning of every field is documented in docs/REFERENCE.md.
+
+Configuration: English section and key names are canonical (`[paths] notebook`, `[protection]
+protected`, ...). A configuration written with the former German names (`[pfade] laborbuch`,
+`[schutz] geschuetzt`, ...) is mapped on load by `normalize_config`.
+
+Layout: a notebook created by this version uses English directory and file names (`entries/`,
+`_templates/`, `summary.qmd`, ...). A notebook with a `_vorlagen/` directory is a legacy
+(German) notebook and keeps its names (`eintraege/`, `zusammenfassung.qmd`, ...), see `LB`.
 """
 from __future__ import annotations
 
@@ -84,11 +93,46 @@ EVENT_KIND_LABELS = {
     "build-fehler": "build error",
     "stop-limit": "stop limit",
 }
-# Aliases for the former constant names (imported by older callers).
-STATUS_WERTE = STATUS_VALUES
-URTEIL_WERTE = VERDICT_VALUES
-PFLICHT_ABSCHNITTE = [en for en, _de in REQUIRED_SECTIONS]
 ID_RE = re.compile(r"\b([ER]-\d{4,})\b")
+
+# Configuration: former German section/key names -> English (canonical). Unknown keys pass through.
+CONFIG_SECTION_MAP = {"pfade": "paths", "buch": "book", "schutz": "protection", "relevanz": "relevance",
+                      "lauf": "run", "pruefung": "check"}
+CONFIG_KEY_MAP = {
+    "paths": {"laborbuch": "notebook", "archiv": "archive"},
+    "book": {"titel": "title", "autor": "author"},
+    "protection": {"geschuetzt": "protected", "nur_anhaengen": "append_only"},
+    "relevance": {"physik": "code", "kommentar_praefix": "comment_prefixes", "abweichung": "deviation",
+                  "test_befehle": "test_commands", "test_fehler_muster": "test_failure_pattern",
+                  "build_befehle": "build_commands", "lauf_befehle": "run_commands"},
+    "run": {"hypothese_commit_pflicht": "require_committed_hypothesis", "dirty_erlaubt": "allow_dirty",
+            "compiler_befehl": "compiler_command", "umgebungsvariablen": "env_vars", "min_frei_gb": "min_free_gb"},
+    "check": {"stop_pruefung": "stop_check", "max_stop_blockaden": "max_stop_blocks"},
+    "trace": {"max_zeichen": "max_chars", "ohne_antwort": "omit_response",
+              "transkripte_archivieren": "archive_transcripts"},
+}
+CONFIG_VALUE_MAP = {("check", "render"): {"aus": "off"},
+                    ("check", "stop_check"): {"immer": "always", "nur-session": "session-only"}}
+CONFIG_NAMES = ("labbook.toml", "laborbuch.toml")   # first match in .claude/ wins
+
+
+def normalize_config(cfg: dict) -> dict:
+    """Configuration with English section/key names and values; German names are mapped,
+    and if both spellings are present the English one wins."""
+    out: dict = {}
+    for sec, body in cfg.items():
+        en_sec = CONFIG_SECTION_MAP.get(sec, sec)
+        if not isinstance(body, dict):
+            out.setdefault(en_sec, body)
+            continue
+        target = out.setdefault(en_sec, {})
+        keymap = CONFIG_KEY_MAP.get(en_sec, {})
+        for k, v in body.items():
+            en_k = keymap.get(k, k)
+            if en_k in target and en_k != k:
+                continue  # English spelling already present
+            target[en_k] = CONFIG_VALUE_MAP.get((en_sec, en_k), {}).get(v, v) if isinstance(v, str) else v
+    return out
 
 
 # --------------------------------------------------------------------------- Compatibility helpers
@@ -146,37 +190,59 @@ def event_label(kind: str) -> str:
 
 # --------------------------------------------------------------------------- Paths, configuration
 
+def config_path(root: Path) -> Path | None:
+    for name in CONFIG_NAMES:
+        if (root / ".claude" / name).exists():
+            return root / ".claude" / name
+    return None
+
+
 def repo_root(start: Path | None = None) -> Path:
     env = os.environ.get("CLAUDE_PROJECT_DIR")
-    if env and (Path(env) / ".claude" / "laborbuch.toml").exists():
+    if env and config_path(Path(env)):
         return Path(env).resolve()
     p = (start or Path.cwd()).resolve()
     for cand in [p, *p.parents]:
-        if (cand / ".claude" / "laborbuch.toml").exists():
+        if config_path(cand):
             return cand
-    raise SystemExit("Lab notebook: .claude/laborbuch.toml not found")
+    raise SystemExit("Lab notebook: .claude/labbook.toml not found (run install.sh first)")
 
 
 def load_config(root: Path) -> dict:
-    with open(root / ".claude" / "laborbuch.toml", "rb") as f:
-        return tomllib.load(f)
+    with open(config_path(root), "rb") as f:
+        return normalize_config(tomllib.load(f))
 
 
 class LB:
-    """Bundles the paths and configuration of one repository."""
+    """Bundles the paths and configuration of one repository.
+
+    `legacy` is true for a notebook created with the former German layout (it has `_vorlagen/`);
+    such a notebook keeps its directory and file names so that its history stays valid."""
 
     def __init__(self, root: Path | None = None):
         self.root = root or repo_root()
+        self.config_file = config_path(self.root)
         self.cfg = load_config(self.root)
-        self.dir = self.root / self.cfg["pfade"]["laborbuch"]
+        self.dir = self.root / self.cfg.get("paths", {}).get("notebook", "labbook")
+        self.legacy = (self.dir / "_vorlagen").is_dir()
+        L = self.legacy
+        self.templates_dir = self.dir / ("_vorlagen" if L else "_templates")
+        self.generated_dir = self.dir / ("_generiert" if L else "_generated")
+        self.overview_file = self.generated_dir / ("uebersicht.md" if L else "overview.md")
+        self.book_dir = "_buch" if L else "_book"          # relative to the notebook, Quarto output-dir
+        self.book_profile = "buch" if L else "book"        # Quarto profile -> _quarto-<profile>.yml
+        self.conventions = self.dir / ("konventionen.qmd" if L else "conventions.qmd")
+        self.summary_name = "zusammenfassung.qmd" if L else "summary.qmd"
         self.state_dir = self.dir / "_state"
         self.trace_dir = self.dir / "_trace"
         self.runs_dir = self.dir / "runs"
-        self.entries_dir = self.dir / "eintraege"
+        self.entries_dir = self.dir / ("eintraege" if L else "entries")
         self.sessions_dir = self.dir / "sessions"
         self.results = self.dir / "results.tsv"
         self.events_file = self.state_dir / "events.jsonl"
-        self.archive_dir = self.root / self.cfg["pfade"].get("archiv", ".laborbuch-archiv")
+        self.error_log = self.state_dir / ("hook-fehler.log" if L else "hook-errors.log")
+        self.unresolved_file = self.state_dir / ("UNERLEDIGT.md" if L else "UNRESOLVED.md")
+        self.archive_dir = self.root / self.cfg.get("paths", {}).get("archive", ".labbook-archive")
         for d in (self.state_dir, self.trace_dir, self.runs_dir, self.entries_dir, self.sessions_dir):
             d.mkdir(parents=True, exist_ok=True)
 
@@ -449,6 +515,15 @@ def qmd_documents(lb: LB) -> list[Path]:
     return sorted([*lb.entries_dir.glob("*/*.qmd"), *lb.sessions_dir.glob("*/*.qmd")])
 
 
+def template(lb: LB, name: str) -> Path:
+    """A template file by its English name; a legacy notebook stores some under German names."""
+    legacy_names = {"entry.qmd": "eintrag.qmd", "summary.qmd": "zusammenfassung.qmd"}
+    p = lb.templates_dir / name
+    if not p.exists() and name in legacy_names:
+        p = lb.templates_dir / legacy_names[name]
+    return p
+
+
 def referenced_ids(lb: LB) -> set[str]:
     refs: set[str] = set()
     for p in qmd_documents(lb):
@@ -492,6 +567,50 @@ def git_is_tracked_clean(lb: LB, rel: str) -> bool:
     if subprocess.run(["git", "ls-files", "--error-unmatch", path], cwd=cwd, capture_output=True).returncode != 0:
         return False
     return subprocess.run(["git", "diff", "--quiet", "HEAD", "--", path], cwd=cwd, capture_output=True).returncode == 0
+
+
+def git_history(lb: LB, rel: str) -> list[tuple[str, str]]:
+    """(commit, author time ISO) of every commit that touched the file, oldest first."""
+    cwd, path = _git_ctx(lb, rel)
+    r = subprocess.run(["git", "log", "--reverse", "--format=%H %aI", "--", path], cwd=cwd,
+                       capture_output=True, text=True)
+    return [tuple(l.split(" ", 1)) for l in r.stdout.splitlines() if " " in l] if r.returncode == 0 else []
+
+
+def git_show(lb: LB, rel: str, rev: str) -> str | None:
+    cwd, path = _git_ctx(lb, rel)
+    r = subprocess.run(["git", "show", f"{rev}:{path}"], cwd=cwd, capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+# --------------------------------------------------------------------------- Entry timestamps
+
+def parse_iso(value) -> dt.datetime | None:
+    try:
+        return dt.datetime.fromisoformat(str(value).strip())
+    except ValueError:
+        return None
+
+
+def entry_times(lb: LB, path: Path, fm: dict) -> tuple[str, str, bool]:
+    """(opened, closed, from_git) of a document. The frontmatter fields `opened`/`closed` are used when
+    present; documents written before these fields existed get the time of their first commit and of
+    the first commit in which they were closed (from_git = True)."""
+    opened, closed = str(fm.get("opened") or ""), str(fm.get("closed") or "")
+    is_closed = normalize_status(fm.get("status")) == "closed"
+    from_git = False
+    if not opened or (is_closed and not closed):
+        rel = lb.rel(path)
+        hist = git_history(lb, rel)
+        if not opened and hist:
+            opened, from_git = hist[0][1], True
+        if is_closed and not closed:
+            for rev, when in hist:
+                old, _, ok = parse_frontmatter(git_show(lb, rel, rev) or "")
+                if ok and normalize_status(old.get("status")) == "closed":
+                    closed, from_git = when, True
+                    break
+    return opened, closed, from_git
 
 
 # --------------------------------------------------------------------------- Normalisation for the relevance check
@@ -553,8 +672,8 @@ def truncate_value(v, limit: int):
 
 def append_trace(lb: LB, payload: dict) -> None:
     tcfg = lb.cfg.get("trace", {})
-    limit = int(tcfg.get("max_zeichen", 4000))
-    no_resp = payload.get("tool_name") in tcfg.get("ohne_antwort", ["Read", "Grep", "Glob"])
+    limit = int(tcfg.get("max_chars", 4000))
+    no_resp = payload.get("tool_name") in tcfg.get("omit_response", ["Read", "Grep", "Glob"])
     rec = {"ts": now_iso()}
     for k, v in payload.items():
         if k == "tool_response" and no_resp:
@@ -584,11 +703,11 @@ def archive_transcript(lb: LB, payload: dict) -> Path | None:
 # --------------------------------------------------------------------------- Protection
 
 def protected_patterns(lb: LB) -> list[str]:
-    return list(lb.cfg.get("schutz", {}).get("geschuetzt", []))
+    return list(lb.cfg.get("protection", {}).get("protected", []))
 
 
 def append_only_patterns(lb: LB) -> list[str]:
-    return list(lb.cfg.get("schutz", {}).get("nur_anhaengen", []))
+    return list(lb.cfg.get("protection", {}).get("append_only", []))
 
 
 def expand_patterns(lb: LB, patterns: list[str]) -> list[str]:
@@ -608,7 +727,8 @@ def expand_patterns(lb: LB, patterns: list[str]) -> list[str]:
 
 
 def manifest_path(lb: LB) -> Path:
-    return lb.root / ".claude" / "laborbuch.sha256"
+    """The manifest sits next to the configuration: labbook.sha256 or (legacy) laborbuch.sha256."""
+    return lb.config_file.with_suffix(".sha256")
 
 
 def sha256_file(p: Path) -> str:
@@ -622,7 +742,8 @@ def sha256_file(p: Path) -> str:
 def write_manifest(lb: LB) -> int:
     ao = append_only_patterns(lb)
     files = [f for f in expand_patterns(lb, protected_patterns(lb)) if not matches_any(f, ao)
-             and f != manifest_path(lb).relative_to(lb.root).as_posix()]
+             and f != manifest_path(lb).relative_to(lb.root).as_posix()
+             and "__pycache__" not in f]          # bytecode differs by Python version between machines
     manifest_path(lb).write_text("".join(f"{sha256_file(lb.root / f)}  {f}\n" for f in files))
     return len(files)
 
@@ -630,7 +751,7 @@ def write_manifest(lb: LB) -> int:
 def verify_manifest(lb: LB) -> list[str]:
     mp = manifest_path(lb)
     if not mp.exists():
-        return ["Protection manifest missing (human: `python3 tools/lb.py schuetze`)."]
+        return ["Protection manifest missing (human: `python3 tools/lb.py protect`)."]
     probs = []
     listed = set()
     for line in mp.read_text().splitlines():
@@ -741,6 +862,18 @@ def check_document(lb: LB, path: Path, all_labels: dict[str, str]) -> list[str]:
                 probs.append(f"{rel}: section `## {name}` is empty (mandatory for a closed entry; use 'none' if so).")
         if status == "closed" and not verdict:
             probs.append(f"{rel}: a closed entry needs a `verdict`.")
+        # timestamps (entries created since 0.2 carry `opened`; older ones get their times from git)
+        if "opened" in fm:
+            t_open = parse_iso(fm.get("opened"))
+            if t_open is None:
+                probs.append(f"{rel}: `opened` is not an ISO timestamp ({fm.get('opened')!r}).")
+            if status == "closed":
+                t_close = parse_iso(fm.get("closed"))
+                if t_close is None:
+                    probs.append(f"{rel}: a closed entry needs a `closed` timestamp "
+                                 f"(close it with `lb.py close {path.parent.name}`).")
+                elif t_open is not None and (t_close.tzinfo is None) == (t_open.tzinfo is None) and t_close < t_open:
+                    probs.append(f"{rel}: `closed` lies before `opened`.")
     for key in ("runs",):
         for rid in fm.get(key) or []:
             if not (lb.runs_dir / str(rid) / "provenance.json").exists():
@@ -751,7 +884,7 @@ def check_document(lb: LB, path: Path, all_labels: dict[str, str]) -> list[str]:
             if not str(why).strip():
                 probs.append(f"{rel}: `discarded: {k}` without a reason.")
     body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
-    for rid in set(re.findall(r"\{\{<\s*(?:prov|lauf-param|ergebnis)\s+(R-\d+)", body)):
+    for rid in set(re.findall(r"\{\{<\s*(?:prov|run-param|result|lauf-param|ergebnis)\s+(R-\d+)", body)):
         if not (lb.runs_dir / rid / "provenance.json").exists():
             probs.append(f"{rel}: shortcode refers to unknown run {rid}.")
     for m in re.finditer(r"!\[[^\]]*\]\(([^)\s]+)\)", body):
@@ -771,7 +904,7 @@ def check_document(lb: LB, path: Path, all_labels: dict[str, str]) -> list[str]:
 
 
 def render_check(lb: LB, path: Path, fmt: str) -> str | None:
-    if fmt == "aus":
+    if fmt == "off":
         return None
     out = path.with_suffix("." + ("pdf" if fmt == "pdf" else "html"))
     if out.exists():
@@ -798,7 +931,7 @@ def full_check(lb: LB, only_changed: bool = True, render: bool = True) -> list[s
     st = load_state(lb)
     last_ok = st.get("pruefung_ok", {})
     labels: dict[str, str] = {}
-    fmt = lb.cfg.get("pruefung", {}).get("render", "pdf")
+    fmt = lb.cfg.get("check", {}).get("render", "pdf")
     passed = {}
     for p in qmd_documents(lb):
         rel = lb.rel(p)

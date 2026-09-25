@@ -25,9 +25,7 @@ The conventions below bind every entry. An entry that deviates from one says so 
 <!-- Replace this block with the conventions of your project. Examples of what belongs here:
 
 - Unit system (SI, cgs, natural units) and exceptions.
-- Definitions of the main symbols and their normalisation, e.g. "n = total density of hydrogen
-  nuclei in cm^-3"; "chi = FUV field in units of the Draine field".
+- Definitions of the main symbols and their normalisation, e.g. "rho = mass density in kg m^-3";
+  "Re = Reynolds number based on the channel half-width".
 - Reference data sets and their versions; which solver tolerances count as "converged".
-- What counts as a passing test (test oracle), and which benchmarks are authoritative.
-
-A complete real-world example is in examples/kosma-tau/conventions.qmd of the labbook repository. -->
+- What counts as a passing test (test oracle), and which benchmarks are authoritative. -->

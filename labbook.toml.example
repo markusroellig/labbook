@@ -1,7 +1,7 @@
 # labbook configuration. install.sh copies this file to <project>/.claude/labbook.toml.
 # The human maintainer edits it; the path is protected against the assistant.
 # Paths and patterns are relative to the repository root. Patterns: `*` = one path segment,
-# `**` = any number of segments. A real-world configuration: examples/kosma-tau/labbook.toml.
+# `**` = any number of segments.
 
 [paths]
 notebook = "labbook"              # the notebook directory (may be a nested git repository of its own)

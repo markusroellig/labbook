@@ -118,7 +118,7 @@ git add -A && git commit -m "labbook installed"
 |---|---|
 | `tools/lb.py` | the command-line tool |
 | `.claude/hooks/labhook.py`, `lb_common.py` | the hooks and their library |
-| `.claude/labbook.toml` | configuration ([annotated](labbook.toml.example); [real-world example](examples/kosma-tau/labbook.toml)) |
+| `.claude/labbook.toml` | configuration ([annotated example](labbook.toml.example)) |
 | `.claude/skills/labbook/` | the working method as a skill (loaded before experiments) |
 | `.claude/agents/labbook-auditor.md` | the independent session auditor |
 | `CLAUDE.labbook.md` | the binding rules, included from `CLAUDE.md` |

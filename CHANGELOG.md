@@ -45,4 +45,4 @@ First release prepared for use outside the project it came from.
 
 ## 0.1.0 – 2026-09-22
 
-Extracted from the KOSMA-tau PDR project (German names, single project).
+First version, with German names, written for use in a single project.

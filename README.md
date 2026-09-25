@@ -29,9 +29,8 @@ session from ending while they are undocumented.
 - **A book.** `lb.py book` renders all entries and session documents as a PDF or HTML book organised
   by month › week › day.
 
-It is plain Python (standard library), git and Quarto. It was developed for the KOSMA-τ
-photon-dominated-region code (Fortran, astrochemistry), where it has documented about 200 model runs
-in 70 entries. Nothing in it is specific to that code.
+It is plain Python (standard library), git and Quarto, and works with any code that runs from the
+command line.
 
 ## What it looks like
 
@@ -181,5 +180,4 @@ directory while code provenance still comes from the project repository. Give ea
 ## Licence and citation
 
 MIT, see [LICENSE](LICENSE). Developed 2026 by Markus Röllig (Physikalischer Verein / University of
-Cologne) in the KOSMA-τ project. Issues and pull requests are welcome; see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Cologne). Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).

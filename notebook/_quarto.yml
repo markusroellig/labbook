@@ -1,9 +1,9 @@
 # Base configuration. Single documents are rendered with it (stop-hook check);
-# the complete book via the profile `buch` (tools/lb.py buch generates _quarto-buch.yml).
+# the complete book via the profile `book` (tools/lb.py book generates _quarto-book.yml).
 project:
   type: default
   render:
-    - "eintraege/*/entry.qmd"
+    - "entries/*/entry.qmd"
     - "sessions/*/*.qmd"
 
 lang: en
@@ -30,12 +30,10 @@ format:
       text: |
         \usepackage{siunitx}
         \usepackage{booktabs}
-        % layout fixes 2026-09-17: smaller table font, breakable identifiers, more stretch
+        % smaller table font, breakable identifiers and underscores, more stretch
         \usepackage{etoolbox}
         \AtBeginEnvironment{longtable}{\footnotesize}
         \setlength{\emergencystretch}{3em}
         \usepackage[htt]{hyphenat}
         \let\lbOrigUnderscore\_
         \renewcommand{\_}{\lbOrigUnderscore\allowbreak}
-        % (the seqsplit wrapper of \texttt was removed on 2026-09-17: it fails in captions,
-        %  "Undefined control sequence \SQSPL@scan"; hyphenat[htt] + breakable \_ suffice)

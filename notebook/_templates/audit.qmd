@@ -3,7 +3,7 @@ title: "Session {{TITLE}}: Audit"
 id: {{ID}}-audit
 date: {{DATE}}
 status: open
-auditor: protokoll-auditor
+auditor: labbook-auditor
 events: []
 discarded: {}
 ---

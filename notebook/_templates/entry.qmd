@@ -2,6 +2,8 @@
 title: "{{TITLE}}"
 id: {{ID}}
 date: {{DATE}}
+opened: "{{OPENED}}"
+closed: ""               # set by `lb.py close`
 status: open             # open | closed | discarded
 author: claude-code      # claude-code | human
 session: "{{SESSION}}"
@@ -28,31 +30,31 @@ reviewed_by: ""          # set only by the human
 
 ### Sources
 
-<!-- Reports, commits, run archives, memory notes. -->
+<!-- Reports, commits, earlier runs, issues. -->
 
 ### Equations and code references
 
-<!-- Every equation with implementation location (file:lines) and definition of all symbols with units.
-     State deviations between formula and code explicitly.
+<!-- Every equation with its implementation location (file:lines) and all symbols defined with units.
+     State deviations between formula and code explicitly. Example:
 
 $$
-\frac{\mathrm{d}n_i}{\mathrm{d}t} = \sum_{j,k} k_{jk}\, n_j n_k - n_i \sum_l k_{il}\, n_l
-$$ {#eq-{{SLUG}}-raten}
+y_{k+1} = y_k + h\, f(t_k, y_k)
+$$ {#eq-{{SLUG}}-euler}
 
-implemented in `src/chemie.f90:212–260`; $n_i$ in cm$^{-3}$, $k_{jk}$ in cm$^{3}$\,s$^{-1}$. -->
+implemented in `src/integrate.py:40–52`; $h$ = step size in s, $y$ in the unit of the state vector. -->
 
 ### Parameters and test coverage
 
 <!-- Which points of the parameter space were checked? Not just one fiducial point.
 
-| Run | $n$ [cm$^{-3}$] | $\chi$ [Draine] | $A_V$ range | Purpose |
-|---|--:|--:|---|---|
-| R-0007 | {{</* lauf-param R-0007 n */>}} | {{</* lauf-param R-0007 chi */>}} | 0–10 | Fiducial |
+| Run | step $h$ | tolerance | Purpose |
+|---|--:|--:|---|
+| R-0007 | {{</* run-param R-0007 h */>}} | {{</* run-param R-0007 tol */>}} | Fiducial |
 -->
 
 ## Result
 
-<!-- Observation only, no interpretation. Numbers via {{</* ergebnis R-0007 metrik */>}} from results.tsv,
+<!-- Observation only, no interpretation. Numbers via {{</* result R-0007 metric */>}} from results.tsv,
      figures only from analysis.py (each .pdf and .png):
 
 ![Description. {{</* prov R-0007 */>}}](fig/name){#fig-{{SLUG}}-name}
@@ -60,9 +62,9 @@ implemented in `src/chemie.f90:212–260`; $n_i$ in cm$^{-3}$, $k_{jk}$ in cm$^{
 
 ## Verification
 
-<!-- Physical and numerical checks with outcome (passed/failed, numbers):
-     element and charge conservation, limiting cases (optically thin, pure gas phase …), energy balance,
-     convergence with respect to grid/tolerance, comparison with reference/benchmark. -->
+<!-- Checks with outcome (passed/failed, numbers), as applicable: conservation laws, limiting cases
+     with known solutions, convergence with respect to resolution/tolerance, comparison with a
+     reference or benchmark. -->
 
 ## Interpretation
 

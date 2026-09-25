@@ -1,0 +1,83 @@
+# labbook configuration. install.sh copies this file to <project>/.claude/labbook.toml.
+# The human maintainer edits it; the path is protected against the assistant.
+# Paths and patterns are relative to the repository root. Patterns: `*` = one path segment,
+# `**` = any number of segments. A real-world configuration: examples/kosma-tau/labbook.toml.
+
+[paths]
+notebook = "labbook"              # the notebook directory (may be a nested git repository of its own)
+archive = ".labbook-archive"      # compressed Claude Code transcripts (keep out of git)
+
+[book]
+title = "Lab notebook"
+author = ""
+
+[protection]
+# The assistant may not change these paths by Edit/Write or (heuristically) by shell (PreToolUse
+# hook); `lb.py protect` writes a SHA-256 manifest of them that the Stop hook verifies.
+protected = [
+  # notebook infrastructure -- keep these
+  "labbook/conventions.qmd",
+  "labbook/results.tsv",
+  "labbook/_state/events.jsonl",
+  "labbook/_trace/**",
+  "labbook/runs/**",
+  "labbook/_templates/**",
+  "labbook/_extensions/**",
+  "labbook/_quarto.yml",
+  ".claude/hooks/**",
+  ".claude/settings.json",
+  ".claude/labbook.toml",
+  ".claude/labbook.sha256",
+  ".claude/agents/labbook-auditor.md",
+  ".claude/skills/labbook/**",
+  "tools/lb.py",
+  # reference data of your project: expected values of tests and benchmarks, observations
+  # "tests/reference/**",
+  # "data/benchmarks/**",
+]
+# Protected files that grow legitimately (only through the hooks and lb.py). The check is that the
+# committed content is a prefix of the current content.
+append_only = [
+  "labbook/results.tsv",
+  "labbook/_state/events.jsonl",
+  "labbook/_trace/**",
+  "labbook/runs/**",
+]
+
+[relevance]
+# Changes here create a "code" event (changes to comments and whitespace only do not).
+code = [
+  "src/**/*.py",
+  # "src/**/*.f90", "src/**/*.c", "data/**",
+]
+comment_prefixes = ["#"]          # line-comment markers of the languages above, e.g. ["!"] for Fortran
+# Changes here create a "deviation" event (parameter space, test scope, tolerances).
+deviation = [
+  "tests/**",
+  "config/**",
+]
+# Regular expressions on the shell command
+test_commands = ['\bpytest\b', '^make test', '\bctest\b']
+test_failure_pattern = '\b\d+ failed\b|FAILED|Tests? failed|\bFAIL\b'
+build_commands = ['^make\b', '\bcmake --build\b']
+run_commands = ['lb\.py\s+run\b']
+
+[run]
+require_committed_hypothesis = true   # the entry with the hypothesis must be committed before `lb.py run`
+allow_dirty = true                    # runs with uncommitted code allowed (the diff is saved with the run)
+compiler_command = ""                 # e.g. "gcc --version"; first line goes into the provenance
+env_vars = ["OMP_NUM_THREADS"]        # environment variables recorded in the provenance
+min_free_gb = 10                      # preflight: minimum free disk space
+# id_range = "1-999"                  # run-ID range of this machine when several machines share one
+#                                     # notebook; another machine sets LB_ID_RANGE="1000-1999"
+
+[check]
+render = "pdf"                    # pdf | html | off  (render test of changed documents in the Stop hook)
+stop_check = "always"             # always | session-only
+max_stop_blocks = 5               # after this many blocked stops the session may end; the open
+                                  # problems go to _state/UNRESOLVED.md
+
+[trace]
+max_chars = 4000                  # truncate tool inputs/outputs in the trace (SHA-256 of the full text is kept)
+omit_response = ["Read", "Grep", "Glob"]   # for these tools only input, length and checksum of the response
+archive_transcripts = true

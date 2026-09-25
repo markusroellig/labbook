@@ -3,8 +3,8 @@ title: "Conventions"
 status: open
 ---
 
-> **Note:** Proposal of the lab-notebook system. To be reviewed and adapted by the human, then
-> run `python3 tools/lb.py schuetze` (`protect`). This file is write-protected for Claude.
+> Example: the conventions file of the KOSMA-tau PDR project (photon-dominated regions,
+> astrochemistry). It shows the kind of definitions that belong in a project's conventions.
 
 ## Units
 

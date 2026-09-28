@@ -21,6 +21,15 @@ reviewed_by: ""          # set only by the human
 
 <!-- Occasion, question, relation to earlier entries (@sec-..., IDs), events or plan. -->
 
+## Abbreviations
+
+<!-- Every run name, configuration tag, decision label, defect label and shorthand used in this
+     document, one line each: what it is and what makes it different. Defined again even if another
+     entry already defines it. Example:
+     * BASE: reference configuration (h = 1e-3 s, tol 1e-8, solver v2.1); `BASE-fine` = h / 4.
+     * FP1, FP2: BASE built from commits abc1234 / def5678 with identical flags (identity pair).
+     Write "none" if the document uses no abbreviations. -->
+
 ## Hypothesis / Expectation
 
 <!-- Write and commit BEFORE the run. Quantitative and falsifiable:

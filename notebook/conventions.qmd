@@ -20,6 +20,17 @@ The conventions below bind every entry. An entry that deviates from one says so 
   `{{</* run-param R-0007 key */>}}`); a number typed by hand names its source.
 - Every quantity carries its unit.
 
+## Abbreviations and run names
+
+- Every entry, summary and audit defines each abbreviation it uses, in the document itself, in its
+  section "Abbreviations": run names (`BASE`, `FP1`, ...), configuration or template tags, decision
+  labels, defect and audit labels, and field-specific shorthands. One line each: what it is, what
+  makes it different (parameters, code version, machine), and where it is defined in full.
+- Abbreviations defined in another entry are defined again, briefly. A reader of one entry must not
+  need a second one to understand it.
+- Compact notations for points of the parameter space (tuples, grid indices) are spelled out with
+  their quantities and units at first use.
+
 ## Project conventions
 
 <!-- Replace this block with the conventions of your project. Examples of what belongs here:

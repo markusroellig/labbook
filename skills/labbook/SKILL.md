@@ -62,6 +62,10 @@ Read equations off the code, do not supplement them from textbook knowledge.
 
 **Conventions** from `labbook/conventions.qmd`. Mark deviations explicitly.
 
+**Define abbreviations.** Every run name, configuration tag, decision or defect label and compact
+parameter notation used in an entry, summary or audit is defined in its section "Abbreviations",
+one line each – even if another entry already defines it.
+
 **Labels** with slug prefix: `{#fig-<slug>-name}`, `{#eq-<slug>-name}`; reference with
 `@fig-<slug>-name`. The reference generates the prefix itself ("Fig. 4.1", "Eq. 4.1") – do not
 write an additional "Fig." in front of it.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Abbreviation rule: every entry, summary and audit defines the run names, tags and labels it uses in
+  a section "Abbreviations" (conventions, skill, and the entry, summary and audit templates). Existing
+  documents are not affected; the checker does not require the section.
+
 ## 0.2.0 – 2026-09-25
 
 First release prepared for use outside the project it came from.

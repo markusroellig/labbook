@@ -670,6 +670,20 @@ def truncate_value(v, limit: int):
     return {"gekuerzt": s[:limit], "laenge": len(s), "sha256": hashlib.sha256(s.encode()).hexdigest()}
 
 
+def rotate_trace(lb: LB, session_id: str, p: Path) -> Path:
+    """Start the next part file of a session trace: <stem>.jsonl -> <stem>_p2.jsonl -> <stem>_p3.jsonl ...
+    GitHub refuses files over 100 MB; a long session's trace crossed that on 2026-10-20 (session 6cd2aea8,
+    107 MB) and blocked every push of the notebook. The mapping is updated under the state lock and only if
+    it still points at `p`, so concurrent hook processes rotate once."""
+    with state_tx(lb) as st:
+        mp = st.setdefault("trace_dateien", {})
+        if mp.get(session_id) != p.name:
+            return lb.trace_dir / mp[session_id]
+        m = re.fullmatch(r"(.*?)(?:_p(\d+))?\.jsonl", p.name)
+        mp[session_id] = f"{m.group(1)}_p{int(m.group(2) or 1) + 1}.jsonl"
+        return lb.trace_dir / mp[session_id]
+
+
 def append_trace(lb: LB, payload: dict) -> None:
     tcfg = lb.cfg.get("trace", {})
     limit = int(tcfg.get("max_chars", 4000))
@@ -683,7 +697,12 @@ def append_trace(lb: LB, payload: dict) -> None:
             rec[k] = truncate_value(v, limit)
         elif k != "transcript_path":
             rec[k] = v
-    p = trace_path(lb, payload.get("session_id", ""))
+    sid = payload.get("session_id", "")
+    p = trace_path(lb, sid)
+    # [trace] rotate_mb (default 50): a session trace larger than this starts a new part file
+    rotate_bytes = int(float(tcfg.get("rotate_mb", tcfg.get("rotieren_mb", 50))) * 1e6)
+    if p.exists() and p.stat().st_size >= rotate_bytes:
+        p = rotate_trace(lb, sid, p)
     with locked(p):
         with open(p, "a") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -924,9 +943,69 @@ def render_check(lb: LB, path: Path, fmt: str) -> str | None:
     return f"{lb.rel(path)}: rendering to {fmt} failed: {msg}"
 
 
+def render_key(lb: LB, path: Path, fmt: str) -> str:
+    """Content key of a rendered document (render cache, 2026-10-21): SHA-256 over everything that reaches the
+    output — the document text, the files it references (figures incl. their .pdf/.png twins, data files), the
+    ledger rows of the runs it cites, the shortcode filter, the Quarto configuration, the output format and the
+    Quarto version. Replaces the mtime key: a `git pull` or a frontmatter edit that leaves the content unchanged no
+    longer forces a re-render, while a changed figure or ledger row does."""
+    h = hashlib.sha256()
+
+    def add(tag: str, data: bytes) -> None:
+        h.update(tag.encode()); h.update(b"\0"); h.update(data); h.update(b"\0")
+
+    text = path.read_text(errors="replace")
+    add("doc", text.encode())
+    add("fmt", fmt.encode())
+    body = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    refs: set[Path] = set()
+    for m in re.finditer(r"!\[[^\]]*\]\(([^)\s]+)\)", body):
+        t = m.group(1)
+        if re.match(r"^[a-z]+://", t):
+            continue
+        base = path.parent / t
+        refs.update([base, base.with_suffix(".pdf"), base.with_suffix(".png")])
+    for m in re.finditer(r"\{\{<\s*include\s+([^\s>]+)", body):
+        refs.add(path.parent / m.group(1))
+    for f in sorted(refs):
+        if f.is_file():
+            add("ref:" + f.name, f.read_bytes())
+    runs = set(re.findall(r"\{\{<\s*(?:prov|run-param|result|lauf-param|ergebnis)\s+(R-\d+)", body))
+    if runs and lb.results.exists():
+        for line in lb.results.read_text(errors="replace").splitlines():
+            f = line.split("\t")
+            if len(f) > 1 and f[1] in runs:
+                add("ledger", line.encode())
+        for rid in sorted(runs):
+            prov = lb.runs_dir / rid / "provenance.json"
+            if prov.exists():
+                add("prov:" + rid, prov.read_bytes())
+    for extra in sorted([*lb.dir.glob("_extensions/*/*.lua"), *lb.dir.glob("_extensions/*/_extension.yml"),
+                         lb.dir / "_quarto.yml"]):
+        if extra.is_file():
+            add("cfg:" + lb.rel(extra), extra.read_bytes())
+    add("quarto", (shutil.which("quarto") or "") .encode() + b":" + _quarto_version().encode())
+    return h.hexdigest()
+
+
+_QUARTO_VERSION: str | None = None
+
+
+def _quarto_version() -> str:
+    global _QUARTO_VERSION
+    if _QUARTO_VERSION is None:
+        try:
+            r = subprocess.run(["quarto", "--version"], capture_output=True, text=True, timeout=30)
+            _QUARTO_VERSION = (r.stdout or "").strip()
+        except (OSError, subprocess.SubprocessError):
+            _QUARTO_VERSION = "unknown"
+    return _QUARTO_VERSION
+
+
 def full_check(lb: LB, only_changed: bool = True, render: bool = True) -> list[str]:
-    """All checks. only_changed: only documents changed since the last successful check are
-    checked for content and by rendering."""
+    """All checks. only_changed: only documents whose render key changed since the last successful check are
+    checked for content and by rendering (render cache: the key covers the text, referenced files, cited ledger
+    rows, filter, configuration and Quarto version; a touched but unchanged file is not re-rendered)."""
     probs: list[str] = []
     st = load_state(lb)
     last_ok = st.get("pruefung_ok", {})
@@ -935,8 +1014,9 @@ def full_check(lb: LB, only_changed: bool = True, render: bool = True) -> list[s
     passed = {}
     for p in qmd_documents(lb):
         rel = lb.rel(p)
-        mtime = p.stat().st_mtime
-        changed = last_ok.get(rel) != mtime
+        key = render_key(lb, p, fmt)
+        out = p.with_suffix("." + ("pdf" if fmt == "pdf" else "html"))
+        changed = last_ok.get(rel) != key or (fmt != "off" and not out.exists())
         doc_probs = check_document(lb, p, labels)
         if doc_probs:
             if changed or not only_changed:
@@ -947,7 +1027,7 @@ def full_check(lb: LB, only_changed: bool = True, render: bool = True) -> list[s
             if err:
                 probs.append(err)
                 continue
-        passed[rel] = mtime
+        passed[rel] = key
     for e in open_events(lb):
         probs.append(f"Event {e['id']} ({event_label(e['art'])}: {e['detail']}) is not documented.")
     probs.extend(verify_manifest(lb))

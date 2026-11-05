@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `lb.py commit [ENTRY_OR_PATH …] -F MSGFILE [--ledger] [--no-push] [--dry-run]`: commits exactly the named
+  entries or notebook paths through a private index (write-tree/commit-tree/update-ref) under a machine-wide
+  lock, then fast-forwards to origin and pushes. Several agents in one notebook clone no longer sweep each
+  other's staged files into their commits (index race seen 2026-10-20).
+- `[trace] rotate_mb` (default 50): a session trace above this size continues in `<stem>_p2.jsonl`,
+  `_p3.jsonl` …; the mapping is advanced once under the state lock even with concurrent hook processes.
+  A 107 MB trace had exceeded GitHub's 100 MB file limit and blocked every push (2026-10-20).
+
+### Changed
+- Render cache: the Stop hook keys re-rendering on a content hash (document text, referenced figures and
+  data files, cited ledger rows and provenance, shortcode filter, `_quarto.yml`, format, Quarto version)
+  instead of the mtime of `entry.qmd`. Pulls, checkouts and frontmatter edits without a content change no
+  longer trigger xelatex; a changed figure now does; a missing output file forces a render.
+
+### Fixed
+- `lb.py result --value -7e-05`: negative values in exponent notation were taken for an option by
+  argparse's narrow negative-number matcher; the `result` subparser now accepts them (`--value=X` keeps
+  working).
+
 ## 0.2.0 – 2026-09-25
 
 First release prepared for use outside the project it came from.

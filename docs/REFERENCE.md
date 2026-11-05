@@ -10,10 +10,11 @@
 | `session end` | write `summary.qmd` with the generated trace statistics; close the session |
 | `run --entry ID [--param k=v]… [--input FILE]… [--output GLOB]… [--description D] -- CMD …` | run `CMD` from the repository root with provenance; refuses without a committed hypothesis |
 | `result RUN --metric M --value X [--unit U] [--reference Y] --status keep\|discard\|info --description D` | append a metric to `results.tsv` |
-| `check [--all] [--no-render]` | the checks of the Stop hook (only documents changed since the last pass, unless `--all`) |
+| `check [--all] [--no-render]` | the checks of the Stop hook (only documents whose content key changed since the last pass, unless `--all`) |
 | `events [--open]` | event list; `--open` = not yet documented |
 | `trace-stats [--session ID]` | statistics from the mechanical trace |
 | `book [--format pdf\|html] [--no-render]` | render all entries and sessions as a Quarto book into `_book/<format>/` (see *Book structure*) |
+| `commit [ENTRY_OR_PATH …] -F MSGFILE [--ledger] [--no-push] [--dry-run]` | commit exactly the named entries/paths of the notebook through a private index under a machine-wide lock, fast-forward to origin and push (see *several agents*) |
 | `protect` | write the SHA-256 manifest of the protected files – **human only**, the hook blocks it for Claude |
 | `preflight` | readiness for an unattended session (tools, hooks, manifest, plan, open events, disk) |
 
@@ -49,6 +50,7 @@ Environment: `LB_ID_RANGE=LOW-HIGH` overrides `[run] id_range`.
 | `[trace] max_chars` | `4000` | truncation of tool input/output in the trace (a SHA-256 of the full text is kept) |
 | `[trace] omit_response` | `["Read","Grep","Glob"]` | tools whose responses are recorded only as length and checksum |
 | `[trace] archive_transcripts` | `true` | copy the transcript into `[paths] archive` at session end |
+| `[trace] rotate_mb` | `50` | a session trace larger than this starts a new part file `<stem>_p2.jsonl`, `_p3.jsonl` … (GitHub refuses files over 100 MB) |
 
 Patterns are relative to the repository root; `*` matches within one path segment, `**` across segments.
 
@@ -155,6 +157,21 @@ one notebook serves all branches and machines. The tool detects this: entry comm
 checks use the notebook repository, code provenance uses the project repository. Commit notebook
 changes inside the notebook directory. When several machines write runs, give each an `id_range`
 (or `LB_ID_RANGE`) so that run IDs cannot collide.
+
+**Several agents in one notebook clone.** Plain `git add` + `git commit` in a shared clone sweeps in
+whatever another agent has staged and leaves that agent's files unstaged. `lb.py commit` avoids the
+shared index: it builds a temporary index from HEAD, adds only the named entries or paths (`--ledger`
+adds `results.tsv`, `_state/` and `_trace/`), commits with `write-tree`/`commit-tree`/`update-ref`,
+refreshes the shared index for those paths only, and runs the fast-forward to origin and the push under
+`/tmp/lb_commit_local.lock`. The message comes from a file (`-F`) and begins with the entry ID.
+Commit a run's ledger rows right after the run: an uncommitted row of one agent that sits before the
+committed rows of another makes the append-only check fail (HEAD is no longer a prefix of the file).
+
+**Render cache.** The Stop hook re-renders a document only when its content key changes: a SHA-256 over
+the text, the referenced figures and data files, the ledger rows and provenance of the cited runs, the
+shortcode filter, `_quarto.yml`, the output format and the Quarto version. A pull, checkout or frontmatter
+edit that leaves the content unchanged does not render again; a changed figure does. Closed entries
+therefore render once.
 
 ## Compatibility names (0.1)
 

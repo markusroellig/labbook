@@ -11,6 +11,7 @@
   lb.py events [--open]                      Event list
   lb.py trace-stats [--session DIR]          Statistics from the mechanical trace
   lb.py book [--format pdf|html] [--no-render]  Render the book: part = month, chapter = week, section = day
+  lb.py commit ENTRY... -F MSG [--ledger]    Commit named entries/paths (private index, lock, push)
   lb.py protect                              Write the protection manifest (MAINTAINER ONLY)
   lb.py preflight                            Check readiness for unattended runs
 
@@ -566,6 +567,95 @@ def cmd_book(lb: C.LB, a) -> None:
     sys.exit(r.returncode)
 
 
+# --------------------------------------------------------------------------- commit
+
+COMMIT_LOCK = Path("/tmp/lb_commit_local.lock")   # one flock per machine for all notebook commits
+
+
+def cmd_commit(lb: C.LB, a) -> None:
+    """Commit exactly the named notebook paths through a private index, under the shared commit lock.
+
+    Several agents work in one notebook clone. `git add` + `git commit` in that clone sweep in whatever another
+    agent has staged and leave the other agent's files unstaged (index race of 2026-10-20, entry
+    2026-10-19_restart-checkpoint-gate). This command never uses the shared index for the commit itself:
+    it builds a temporary index from HEAD, adds only the given paths, writes the tree and commits it
+    (write-tree / commit-tree / update-ref), then refreshes the shared index for those paths only. The whole
+    sequence, including the fast-forward to origin and the push, runs under /tmp/lb_commit_local.lock.
+    Arguments: entry ids (entries/<id>) or notebook-relative paths; `--ledger` adds the ledger and state
+    files (results.tsv, _state/, _trace/) without naming them on the command line."""
+    import fcntl
+    import tempfile
+    repo = lb.dir if (lb.dir / ".git").exists() else lb.root
+    base = "" if repo == lb.dir else lb.rel(lb.dir) + "/"
+    paths = []
+    for x in a.paths:
+        if (lb.entries_dir / x).is_dir():
+            paths.append(base + lb.entries_dir.name + "/" + x)
+        elif (repo / x).exists():
+            paths.append(x)
+        elif (lb.dir / x).exists():
+            paths.append(base + x)
+        else:
+            die(f"unknown entry or path: {x}")
+    if a.ledger:
+        paths += [base + "results.tsv", base + "_state", base + "_trace"]
+    if not paths:
+        die("nothing to commit: name entry ids or paths (or --ledger)")
+    msg = Path(a.file).read_text(encoding="utf-8") if a.file else ""
+    if not msg.strip():
+        die("commit message file (-F) is empty or missing")
+
+    def g(*args, env=None, check=True):
+        r = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, env=env)
+        if check and r.returncode:
+            die(f"git {' '.join(args)}: {r.stderr.strip()[:300]}")
+        return r
+
+    COMMIT_LOCK.touch(exist_ok=True)
+    with open(COMMIT_LOCK) as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        branch = g("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        has_remote = bool(g("remote", check=False).stdout.strip())
+        if not a.no_push and has_remote:
+            g("fetch", "-q", "origin")
+            ahead = g("rev-list", "--count", f"HEAD..origin/{branch}", check=False).stdout.strip()
+            if ahead not in ("", "0"):
+                r = g("merge", "--ff-only", f"origin/{branch}", check=False)
+                if r.returncode:
+                    die(f"origin/{branch} moved by {ahead} commit(s) and the fast-forward failed "
+                        f"(local modifications overlap): {r.stderr.strip()[:200]}")
+                print(f"fast-forwarded {branch} to origin ({ahead} commit(s))")
+        head = g("rev-parse", "HEAD").stdout.strip()
+        with tempfile.NamedTemporaryFile(prefix="lb_index_", delete=False) as tf:
+            idx = tf.name
+        env = dict(os.environ, GIT_INDEX_FILE=idx)
+        try:
+            g("read-tree", head, env=env)
+            g("add", "-A", "--", *paths, env=env)
+            tree = g("write-tree", env=env).stdout.strip()
+            if tree == g("rev-parse", f"{head}^{{tree}}").stdout.strip():
+                print("nothing to commit for", ", ".join(paths))
+                return
+            changed = g("diff-tree", "--no-commit-id", "--name-only", "-r", head, tree).stdout.split()
+            if a.dry_run:
+                print("would commit", len(changed), "file(s):", *changed[:20])
+                return
+            with tempfile.NamedTemporaryFile("w", prefix="lb_msg_", suffix=".txt", delete=False,
+                                             encoding="utf-8") as mf:
+                mf.write(msg)
+                mfp = mf.name
+            new = g("commit-tree", tree, "-p", head, "-F", mfp).stdout.strip()
+            g("update-ref", "-m", "lb.py commit", "HEAD", new, head)
+            os.unlink(mfp)
+        finally:
+            os.unlink(idx)
+        g("reset", "-q", "--", *paths, check=False)          # shared index: these paths now equal HEAD
+        print(f"{new[:7]} {msg.splitlines()[0][:100]}  ({len(changed)} file(s))")
+        if not a.no_push and has_remote:
+            r = g("push", "-q", "origin", f"HEAD:{branch}", check=False)
+            print("pushed" if r.returncode == 0 else f"PUSH FAILED: {r.stderr.strip()[:200]}")
+
+
 # --------------------------------------------------------------------------- protect, preflight
 
 def cmd_protect(lb: C.LB, a) -> None:
@@ -647,6 +737,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("run", metavar="RUN_ID")
     p.add_argument("--metric", "--metrik", dest="metric", required=True, help="metric name")
     p.add_argument("--value", "--wert", dest="value", required=True, help="numeric value")
+    # argparse treats "-7e-05" as an option (its negative-number test accepts only "-7" or "-7.5"), so
+    # `--value -7e-05` fails while `--value=-7e-05` works; widen the test so exponent notation is a value
+    # (2026-10-23, found by the UQ A3 analysis; `re` is already imported)
+    p._negative_number_matcher = re.compile(r"^-(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$")
     p.add_argument("--unit", "--einheit", dest="unit", default="", help="unit")
     p.add_argument("--reference", "--referenz", dest="reference", default="", help="reference value")
     p.add_argument("--status", required=True, choices=["keep", "discard", "info"])
@@ -665,6 +759,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("book", aliases=["buch"], help="render the lab notebook as a Quarto book")
     p.add_argument("--format", default="pdf", choices=["pdf", "html"])
     p.add_argument("--no-render", dest="no_render", action="store_true", help="only write the book sources")
+    p = sub.add_parser("commit", help="commit named entries/paths of the notebook through a private index (lock + push)")
+    p.add_argument("paths", nargs="*", metavar="ENTRY_OR_PATH")
+    p.add_argument("-F", "--file", dest="file", required=True, help="commit message file")
+    p.add_argument("--ledger", action="store_true", help="also commit results.tsv, _state/ and _trace/")
+    p.add_argument("--no-push", dest="no_push", action="store_true", help="commit only, no fetch/push")
+    p.add_argument("--dry-run", dest="dry_run", action="store_true", help="show what would be committed")
     sub.add_parser("protect", aliases=["schuetze"], help="write the protection manifest (MAINTAINER ONLY)")
     sub.add_parser("preflight", help="check readiness for unattended runs")
     return ap
@@ -686,7 +786,7 @@ def main() -> None:
     lb = C.LB(root)
     {"new": cmd_new, "close": cmd_close, "session": cmd_session, "run": cmd_run, "result": cmd_result, "check": cmd_check,
      "events": cmd_events, "trace-stats": cmd_trace, "book": cmd_book,
-     "protect": cmd_protect, "preflight": cmd_preflight}[cmd](lb, a)
+     "protect": cmd_protect, "preflight": cmd_preflight, "commit": cmd_commit}[cmd](lb, a)
 
 
 if __name__ == "__main__":

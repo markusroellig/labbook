@@ -33,7 +33,9 @@ Mechanics that run independently of you (do not bypass, do not fight):
 7. **Close it:** `python3 tools/lb.py close <id> --verdict confirmed|refuted|undecided|not-applicable`
    sets `status`, `verdict` and the `closed` timestamp (`opened` was set by `new`); do not type
    timestamps by hand. Then `python3 tools/lb.py check` and commit. The commit message begins with
-   the entry ID.
+   the entry ID. When several agents share one notebook clone, commit with
+   `python3 tools/lb.py commit <id> -F msg.txt` (only the named entry; `--ledger` for `results.tsv`)
+   instead of `git add`/`git commit`, and commit a run's ledger rows right after the run.
 
 ## Autonomous session
 

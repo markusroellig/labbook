@@ -136,7 +136,7 @@ checks this).
 | `lb.py run --entry <id> [--param k=v] [--input F] [--output GLOB] -- CMD …` | run with provenance |
 | `lb.py result R-0001 --metric M --value X --status keep\|discard\|info --description "…"` | metric into the ledger |
 | `lb.py close <id> --verdict confirmed\|refuted\|…` | close an entry (status, verdict, `closed` timestamp) |
-| `lb.py check [--all]` | what the Stop hook checks |
+| `lb.py check [--all] [--since DATE]` | what the Stop hook checks, including the entry lint rules: no explicit image extension in `fig/` references (opt-out `<!-- lint: allow-extension -->`), no `\rm \bf \it \sl \sc \tt` in math; `--since` / `[check] lint_since` restricts these rules to newer entries |
 | `lb.py events --open` | undocumented events |
 | `lb.py session start <slug>` / `session end` | autonomous session with plan and summary |
 | `lb.py book [--format html]` | render the book (month › week › day › entry) |

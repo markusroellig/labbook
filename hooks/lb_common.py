@@ -851,6 +851,78 @@ def verify_closed_entries(lb: LB) -> list[str]:
     return probs
 
 
+# --------------------------------------------------------------------------- Lint rules for entry text
+
+FIG_EXT_RE = re.compile(r"!\[[^\]]*\]\(\s*(fig/[^)\s]*\.(?:pdf|png|svg|jpg))(?:\s+[^)]*)?\)", re.I)
+FIG_EXT_OPTOUT = "lint: allow-extension"
+TEX_SWITCH_RE = re.compile(r"\\(?:rm|bf|it|sl|sc|tt)(?![A-Za-z@])")
+_MATH_RE = re.compile(r"\$\$(.+?)\$\$|\\\[(.+?)\\\]|\\\((.+?)\\\)"
+                      r"|(?<![\\$])\$(?![\s$])((?:[^$\\\n]|\\.)+?)(?<![\s\\])\$(?!\d)", re.S)
+
+
+def lint_figure_extensions(body: str) -> list[str]:
+    """Targets of `![..](fig/x.ext)` with an explicit image extension (not in code, no opt-out comment on the line)."""
+    out = []
+    in_fence = False
+    for line in body.splitlines():
+        if re.match(r"\s*(```|~~~)", line):
+            in_fence = not in_fence
+            continue
+        if in_fence or FIG_EXT_OPTOUT in line:
+            continue
+        line = re.sub(r"`[^`\n]*`", "", line)
+        out += [m.group(1) for m in FIG_EXT_RE.finditer(line)]
+    return out
+
+
+def lint_tex_switches(body: str) -> list[str]:
+    """Undefined two-letter font switches (\\rm \\bf \\it \\sl \\sc \\tt) in inline/display math and in raw LaTeX
+    blocks; ordinary code blocks, inline code and HTML comments are ignored."""
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+    regions: list[str] = []
+    kept: list[str] = []
+    lines = body.splitlines()
+    i = 0
+    while i < len(lines):
+        m = re.match(r"\s*(```+|~~~+)\s*(\{=latex\}|\{=tex\})?", lines[i])
+        if m:
+            fence, raw = m.group(1), m.group(2)
+            i += 1
+            block = []
+            while i < len(lines) and not lines[i].strip().startswith(fence):
+                block.append(lines[i])
+                i += 1
+            if raw:
+                regions.append("\n".join(block))
+        else:
+            kept.append(lines[i])
+        i += 1
+    text = re.sub(r"`[^`\n]*`", "", "\n".join(kept))
+    for m in _MATH_RE.finditer(text):
+        regions.append(next(g for g in m.groups() if g is not None))
+    found = []
+    for r in regions:
+        found += TEX_SWITCH_RE.findall(r)
+    return sorted(set(found))
+
+
+def lint_entry_text(rel: str, body: str) -> list[str]:
+    probs = [f"{rel}: figure reference carries an explicit extension ({t}); write fig/<name> without extension so "
+             f"Quarto picks png for HTML and pdf for PDF (default-image-extension). "
+             f"Genuine PDF-only embeds: add `<!-- {FIG_EXT_OPTOUT} -->` on the same line."
+             for t in lint_figure_extensions(body)]
+    probs += [f"{rel}: TeX font switch {t} in math is undefined in the notebook LaTeX class (xelatex/scrartcl with "
+              f"unicode-math?): use \\mathrm{{…}}, \\mathbf{{…}}, \\mathit{{…}}." for t in lint_tex_switches(body)]
+    return probs
+
+
+def lint_applies(lb: "LB", entry_id: str) -> bool:
+    """Grandfathering: with `[check] lint_since = "YYYY-MM-DD"` (or `lb.py check --since DATE`) the lint rules
+    only apply to entries whose directory name starts with a date >= that date."""
+    since = str(lb.cfg.get("check", {}).get("lint_since", "") or "")
+    return not since or entry_id[:10] >= since
+
+
 # --------------------------------------------------------------------------- Checking entries
 
 def check_document(lb: LB, path: Path, all_labels: dict[str, str]) -> list[str]:
@@ -902,6 +974,8 @@ def check_document(lb: LB, path: Path, all_labels: dict[str, str]) -> list[str]:
         for k, why in v.items():
             if not str(why).strip():
                 probs.append(f"{rel}: `discarded: {k}` without a reason.")
+    if is_entry and lint_applies(lb, path.parent.name):
+        probs.extend(lint_entry_text(rel, body))
     body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
     for rid in set(re.findall(r"\{\{<\s*(?:prov|run-param|result|lauf-param|ergebnis)\s+(R-\d+)", body)):
         if not (lb.runs_dir / rid / "provenance.json").exists():

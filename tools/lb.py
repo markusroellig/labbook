@@ -320,6 +320,8 @@ def cmd_result(lb: C.LB, a) -> None:
 # --------------------------------------------------------------------------- check, events
 
 def cmd_check(lb: C.LB, a) -> None:
+    if a.since:
+        lb.cfg.setdefault("check", {})["lint_since"] = a.since
     probs = C.full_check(lb, only_changed=not a.all, render=not a.no_render)
     if probs:
         print("\n".join(f"- {p}" for p in probs))
@@ -747,6 +749,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--description", "--beschreibung", dest="description", required=True, help="what the number means")
     p = sub.add_parser("check", aliases=["pruefe"], help="run all checks (as the Stop hook does)")
     p.add_argument("--all", "--alle", dest="all", action="store_true", help="check all documents, not only changed ones")
+    p.add_argument("--since", metavar="DATE", help="apply the entry lint rules (figure extension, TeX font switches) "
+                   "only to entries whose id starts with a date >= DATE (YYYY-MM-DD); config: [check] lint_since")
     p.add_argument("--no-render", "--ohne-render", dest="no_render", action="store_true",
                    help="skip the Quarto render check")
     p = sub.add_parser("events", aliases=["ereignisse"], help="list events")

@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- Two entry lint rules (errors in `lb.py check` and the Stop hook, applied to `entry.qmd`): (1) a Markdown image
+  `![..](fig/<name>.pdf|png|svg|jpg)` with an explicit extension (write `fig/<name>` so Quarto picks png for HTML,
+  pdf for PDF; opt out per line with `<!-- lint: allow-extension -->`); (2) the TeX font switches `\rm \bf \it \sl
+  \sc \tt` in inline/display math and raw LaTeX blocks (undefined in xelatex/scrartcl with unicode-math; use
+  `\mathrm{}`, `\mathbf{}`, `\mathit{}`). Code blocks, inline code and HTML comments are ignored.
+- `lb.py check --since DATE` / `[check] lint_since = "YYYY-MM-DD"`: apply these two rules only to entries whose id
+  starts with a date >= DATE, so closed (immutable) entries can be grandfathered.
 - `lb.py commit [ENTRY_OR_PATH …] -F MSGFILE [--ledger] [--no-push] [--dry-run]`: commits exactly the named
   entries or notebook paths through a private index (write-tree/commit-tree/update-ref) under a machine-wide
   lock, then fast-forwards to origin and pushes. Several agents in one notebook clone no longer sweep each
